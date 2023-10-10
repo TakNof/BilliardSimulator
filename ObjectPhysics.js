@@ -123,7 +123,7 @@ class ObjectPhysics{
         }else{
             // console.log("canceling speed");
             this.config.velocityVector.y = 0;
-            if(this.config.friction){
+            if(this.config.friction && this.getMomentum() != 0){
                 this.config.velocityVector.x *= (0.99);
                 this.config.velocityVector.z *= (0.99);
             }
@@ -142,9 +142,21 @@ class ObjectPhysics{
             this.object.position.z += this.config.velocityVector.z;
         }
 
-        if(this.config.velocityVector.length() < 1/10000){
-            this.config.velocityVector.multiplyScalar(0);
+        // if(this.config.velocityVector.length() < 1/10000){
+        //     this.config.velocityVector.multiplyScalar(0);
+        // }
+
+        this.rotateAccordingToDirection();
+    }
+
+    rotateAccordingToDirection(){
+        let axles = ["x", "y", "z"];
+        let complementaryAxels = ["z", "x", "y"];
+
+        for(let [i, axis] of axles.entries()){
+            this.object[`rotate${complementaryAxels[i].toUpperCase()}`](2*Math.PI * -this.config.velocityVector[axis]);
         }
+
     }
 
     createArrowHelper(vdir, vorig = new THREE.Vector3(), length = 1, color = 0x04fc00){

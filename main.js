@@ -20,6 +20,9 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild( renderer.domElement );
 
 
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+
 const controls = new OrbitControls( camera,renderer.domElement );
 controls.enableZoom = true; 
 controls.minDistance = 1; 
@@ -40,31 +43,29 @@ scene.background = new THREE.CubeTextureLoader()
         '6.png'
 	]);
 
-let scenePhysics = new ScenePhysics(scene, {viewMovementHelper: true, energyLoss: 0.1});
-
-let colours = [0x03cffc, 0x09ff00, 0xff8800, 0xff00e1];
+let scenePhysics = new ScenePhysics(scene, {viewMovementHelper: false, energyLoss: 0.1});
 
 let playAnimation = false;
 
 let timeDivision = 1000;
 
-let ballYo = 8;
+let ballYo = 2;
 
 let balls = new Array(10);
 for(let i = 0; i < balls.length; i++){
-    balls[i] = new ShapeGenerator("Sphere", [0.5, 32, 32], "Standard", {color: colours[rand(0, colours.length - 1)], roughness: 0});
-    balls[i].position.y = ballYo + rand(0, 6);
+    balls[i] = new ShapeGenerator("Sphere", [0.5, 32, 32], "Standard", {map: createTexture(`./assets/ball${rand(1, 5)}.jpg`), roughness: 0});
+    balls[i].position.y = ballYo;
     balls[i].position.x = rand(0, 4);
     balls[i].position.z = rand(-4, 0);
 
     balls[i].castShadow = true;
 
-    balls[i].createPhysics(scene, {velocityVector: [-1/timeDivision*100, 0, 1/timeDivision*100]});
+    balls[i].createPhysics(scene, {velocityVector: [rand(-2, 2)/timeDivision*100, 0, rand(-2, 2)/timeDivision*100]});
 
     scene.add(balls[i]);
 }
 
-let floor = new ShapeGenerator("Box", [10, 1, 10], "Standard", {color: 0xFF00000, transparent: true, opacity: 0.5});
+let floor = new ShapeGenerator("Box", [20, 1, 10], "Standard", {map: createTexture("./assets/table.jpg")});
 floor.receiveShadow = true;
 floor.position.y = -0.5;
 scene.add(floor);
@@ -73,7 +74,7 @@ let walls = new Array(4);
 
 for(let i = 0; i < walls.length; i++){
     let side = 1;
-    let dimensions = [10, 10, 10];
+    let dimensions = [floor.geometry.parameters[checkProperty("x")], 2, floor.geometry.parameters[checkProperty("z")]];
     let axis = "x";
 
     if(i % 2 == 0){
@@ -88,41 +89,15 @@ for(let i = 0; i < walls.length; i++){
         axis = "z";
     }
 
-    walls[i] = new ShapeGenerator("Box", dimensions, "Standard", {color: colours[i], transparent: true, opacity: 0.5, side: THREE.DoubleSide});
+    walls[i] = new ShapeGenerator("Box", dimensions, "Standard", {map: createTexture("./assets/wood.jpg"), normalMap: createTexture("./assets/woodNM.jpg")});
     walls[i].receiveShadow = true;
-    walls[i].position.y = 5;
-    walls[i].position[axis] = 5.5*side;
+    walls[i].position.y = dimensions[1]/2;
+    walls[i].position[axis] = ((floor.geometry.parameters[checkProperty(axis)]/2) + floor.geometry.parameters.height/2)*side;
     scene.add(walls[i]);
     
 }
 
-let stairs = new Array(4);
-let startPoint = 7;
-
-for(let i = 0; i < stairs.length; i++){
-    let side = 1;
-    let side2 = -1;
-    let dimensions = [5, 2, 5];
-
-    if(i % 2 == 0){
-        side = -1;
-    }
-
-    if(i % 3 == 0){
-        side2 = 1;
-    }else{
-        side2 = -1;
-    }
-
-    stairs[i] = new ShapeGenerator("Box", dimensions, "Standard", {color: colours[rand(0, colours.length - 1)], transparent: true, opacity:0.5});
-    stairs[i].receiveShadow = true;
-    stairs[i].position.y = startPoint - i*dimensions[1];
-    stairs[i].position.x = 2.5*side2;
-    stairs[i].position.z = 2.5*side2*side;
-    scene.add(stairs[i]);
-}
-
-let scenary = [floor, ...walls, ...stairs];
+let scenary = [floor, ...walls];
 
 scenePhysics.add(...scenary, ...balls);
 
@@ -142,6 +117,7 @@ function animate(time, delta) {
 
     if(playAnimation){
         scenePhysics.checkWorldCollisions();
+        playerInteraction();
         for(let ball of balls){
             ball.physics.move(1/timeDivision);
         }
@@ -150,6 +126,36 @@ function animate(time, delta) {
     controls.update();
 }
 animate();
+
+function onPointerMove( event ) {
+
+	// calculate pointer position in normalized device coordinates
+	// (-1 to +1) for both components
+
+	pointer.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+	pointer.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+}
+
+function playerInteraction(){ 
+    raycaster.setFromCamera( pointer, camera );
+
+	// calculate objects intersecting the picking ray
+	const intersects = raycaster.intersectObjects(scene.children);
+
+    if(intersects.length > 0){
+        let element = intersects[0];
+
+        if(element && element.object.physics){
+            onclick = (event) =>{
+                // element.object.material.color.set( 0xff0000 );
+                element.object.physics.config.velocityVector = new THREE.Vector3().subVectors(camera.position, element.object.position).normalize().multiplyScalar(-0.2);
+            } 
+        } 
+    }   
+}
+
+window.addEventListener('pointermove', onPointerMove );
 
 window.addEventListener("keydown", function(event){
     switch (event.code) {
@@ -169,11 +175,11 @@ window.addEventListener("keydown", function(event){
 
         case "KeyR":
             for(let ball of balls){
-                ball.position.y = ballYo + rand(0, 6);
+                ball.position.y = ballYo;
                 ball.position.x = rand(0, 4);
                 ball.position.z = rand(-4, 0);
 
-                ball.physics.config.velocityVector.fromArray([-1/timeDivision*100,0,1/timeDivision*100]);
+                ball.physics.config.velocityVector.fromArray([rand(-2, 2)/timeDivision*100, 0, rand(-2, 2)/timeDivision*100]);
             }            
         break;
     
@@ -181,6 +187,22 @@ window.addEventListener("keydown", function(event){
             break;
     }
 })
+
+function checkProperty(axis){
+    switch (axis) {
+        case "x":
+            return "width";
+        
+        case "y":
+            return "height";
+        
+        case "z":
+            return "depth";
+        
+        default:
+            return undefined;
+    }
+}
 
 function rand(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min)
@@ -196,4 +218,13 @@ function createLight(color, intensity, position = {x: 0, y: 0, z: 0}){
     light.shadow.camera.far = 500; // default
     light.shadow.focus = 1; // default
     return light;
+}
+
+function createTexture(rute, height = 1, width = 1){
+    let texture = new THREE.TextureLoader().load(rute);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(height, width); 
+
+    return texture;
 }
