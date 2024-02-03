@@ -45,7 +45,7 @@ scene.background = new THREE.CubeTextureLoader()
 
 let scenePhysics = new ScenePhysics(scene, {viewMovementHelper: false, energyLoss: 0.1});
 
-let playAnimation = false;
+let playAnimation = true;
 
 let timeDivision = 1000;
 
